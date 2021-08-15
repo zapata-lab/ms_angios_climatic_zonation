@@ -1,2 +1,2 @@
-# ms_angios_climatic_zonation
-Manuscript testing the Climatic Zonation Hypothesis in Angiosperms
+# Climatic Zonation Hypothesis in Angisoperms
+This repo contains the reproducible code to regenerate the manuscript.
