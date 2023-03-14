@@ -491,7 +491,6 @@ summary(rt)
 
 
 
-
 pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf', 
   height = 6, width = 8)
 
@@ -540,3 +539,17 @@ dev.off()
 
 
 
+
+library(zoib)
+
+
+r = zoib(eo ~ pair_age + abs(l_s) | 1 | abs(l_s) | abs(l_s), 
+  data = d, random = 0, zero.inflation = TRUE, one.inflation = TRUE, 
+  n.iter = 1050, n.thin = 5, n.burn=50)
+summary(r$coeff)
+
+
+r = zoib(to ~ pair_age + abs(l_s)| 1 | abs(l_s),
+  data = d, random = 0, zero.inflation = TRUE, one.inflation = FALSE, 
+  n.iter = 1050, n.thin = 5, n.burn=50)
+summary(r$coeff)
