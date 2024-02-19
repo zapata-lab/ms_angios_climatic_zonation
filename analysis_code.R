@@ -22,17 +22,18 @@ library(terra)
 library(maps)
 #devtools::install_github("jinyizju/V.PhyloMaker2")
 library(V.PhyloMaker2)
+#install.packages("countrycode")
+library(countrycode)
 #install.packages("CoordinateCleaner")
 library(CoordinateCleaner)
 library(TreeTools)
-#install.packages("countrycode")
-library(countrycode)
 #install.packages("rnaturalearthdata")
 library(rnaturalearthdata)
 #install.packages("geosphere")
 library(geosphere)
 library(sf)
 library(diverge)
+library(ggtree)
 
 #### Preliminaries ####
 time_start = Sys.time()
@@ -252,7 +253,8 @@ indata_angiosperms = indata_angiosperms %>%
   ungroup() %>%
   drop_na(decimalLongitude, 
           decimalLatitude,
-          species)
+          species,
+          countryCode)
 
 # Check that all records are HUMAN_OBSERVATION and PRESERVED_SPECIMEN.
 # If not, apply filter
@@ -280,17 +282,22 @@ indata_angiosperms = indata_angiosperms %>%
 # To apply multiple filters implemented in `clean_coordinates` library,
 # we need to make some edits to column names
 
+# convert countryCode to countrycode (no capital letters)
+names(indata_angiosperms)[12] = c("countrycode")
+
+
 # convert country code from ISO2c to ISO3c
-indata_angiosperms$countryCode = countrycode(indata_angiosperms$countryCode,
+indata_angiosperms$countrycode = countrycode(indata_angiosperms$countrycode,
                                              origin =  "iso2c", 
-                                             destination = "iso3c")
+                                             destination = "iso3c",
+                                             nomatch = "XKX")
 
 # check name changes
 colnames(indata_angiosperms)
 
 # convert Latitude and Longitude to latitude and longitude (no capital letters)
-names(indata_angiosperms)[16:17] = c("decimallatitude", 
-                                     "decimallongitude")
+#names(indata_angiosperms)[16:17] = c("decimallatitude", 
+#                                     "decimallongitude")
 
 # Apply filters. For filter explanations, see https://ropensci.github.io/CoordinateCleaner/
 indata_angiosperms = indata_angiosperms %>%
@@ -305,8 +312,8 @@ indata_angiosperms = indata_angiosperms %>%
   cc_outl(method ="quantile", 
           mltpl = 5) %>% # outliers using quantile method and 5 times the Interquantile Range. See https://ropensci.github.io/CoordinateCleaner/reference/cc_outl.html
   cc_dupl() %>% # duplicates per species based on lat/long
-  cc_coun(iso3 = "countryCode") %>% # Lat/Long outside of country
-  cd_ddmm(ds = "species", 
+  #cc_coun(iso3 = "countrycode") %>% # Lat/Long outside of country. With the update to this function, it broke. 
+  cd_ddmm(ds = "datasetKey", 
           diff = 1) # error in degree conversion. See https://ropensci.github.io/CoordinateCleaner/reference/cd_ddmm.html
 
 # apply filter based on elevation outliers and minimum sample size per species
@@ -315,18 +322,20 @@ indata_angiosperms = indata_angiosperms %>%
   filter(elevation <= quantile(elevation, 0.975) & 
            elevation >= quantile(elevation, 0.025)) %>% # Filter elevation outliers (records in the 2.5% tails of the distribution per species)
   filter(n() >= 10) %>%
-  mutate(across("class", str_replace, "Liliopsida", "Monocots")) %>%
-  mutate(across("class", str_replace, "Magnoliopsida", "Dicots")) %>%
+  mutate(across("class", ~str_replace(., "Liliopsida", "Monocots"))) %>%
+  mutate(across("class", ~str_replace(., "Magnoliopsida", "Dicots"))) %>%
   dplyr::select(gbifID,
                 class,
                 family,
                 genus,
                 species,
-                countryCode,
-                decimallatitude,
-                decimallongitude,
+                countrycode,
+                decimalLatitude,
+                decimalLongitude,
                 elevation) %>%
 ungroup()
+
+# Up to this point, the table has 3,767,582 records
 
 indata_angiosperms %>%
   count(species) %>%
@@ -342,8 +351,8 @@ all_sp_pairs_phylo = extract_sisters(GBOTB.extended.TPL, sis_age = T)
 # Make the previous dataframe a tibble and fix names to match in our dataset
 all_sp_pairs_phylo = as_tibble(all_sp_pairs_phylo)
 all_sp_pairs_phylo = all_sp_pairs_phylo %>%
-  mutate(across("sp1", str_replace, "_", " ")) %>%
-  mutate(across("sp2", str_replace, "_", " "))
+  mutate(across("sp1", ~str_replace(., "_", " "))) %>%
+  mutate(across("sp2", ~str_replace(., "_", " ")))
 
 
 # Filter sister species pairs restricted to species of monocots with gbif data
@@ -384,15 +393,16 @@ sp_pairs_angiosperms_long = pivot_longer(
 # Use this table to extract bioclimatic data for all species (in a pair)
 sp_pairs_angiosperms_long = sp_pairs_angiosperms_long %>% 
   group_by(species)
-# 2692 species 678336 specimens
+sp_pairs_angiosperms_long
+# 2734 species 684913 specimens
 
 
 #### Filter bioclimatic data ####
 
 # Make dataframes from coordinates to be able to extract values from raster layers
 coords_all_sp_pairs_angiosperms = data.frame(
-  lon = sp_pairs_angiosperms_long$decimallongitude,
-  lat = sp_pairs_angiosperms_long$decimallatitude)
+  lon = sp_pairs_angiosperms_long$decimalLongitude,
+  lat = sp_pairs_angiosperms_long$decimalLatitude)
 
 coordinates(coords_all_sp_pairs_angiosperms) = c("lon",
                                                  "lat")
@@ -539,10 +549,10 @@ sp_pairs_angiosperms_long_alldata %>%
 tmp_ntemp = sp_pairs_angiosperms_long_alldata %>% # This tibble is grouped by species. 
   ungroup() %>%
   group_by(tree_node) %>% # Important so sister pairs are not widespread across regions
-  filter(min(decimallatitude) > 23.437) %>% # unique to N. Temp.
+  filter(min(decimalLatitude) > 23.437) %>% # unique to N. Temp.
   group_by(species, tree_node, pair_age, pair, class) %>% # just for sorting final table and double check pairs are unique to region
   summarise(n_collections = n(), # count number of collections per species
-            mean_latitude = mean(decimallatitude), # a crude metric of geographic distribution
+            mean_latitude = mean(decimalLatitude), # a crude metric of geographic distribution
             elev_range = max(elevation) - min(elevation), # Elev range (response variable).
             temp_range = max(bio5) - min(bio6), # Temp range (response variable)
             precip_range = max(bio13) - min(bio14)) %>% # Ppt range (response variable)
@@ -553,11 +563,11 @@ tmp_ntemp = sp_pairs_angiosperms_long_alldata %>% # This tibble is grouped by sp
 tmp_trop = sp_pairs_angiosperms_long_alldata %>% # This tibble is grouped by species.
   ungroup() %>%
   group_by(tree_node) %>% # Important so sister pairs are not widespread across regions
-  filter(min(decimallatitude) >= -23.437 & 
-           max(decimallatitude) <= 23.437) %>% # unique to Tropics
+  filter(min(decimalLatitude) >= -23.437 & 
+           max(decimalLatitude) <= 23.437) %>% # unique to Tropics
   group_by(species, tree_node, pair_age, pair, class) %>% # just for sorting final table and double check pairs are unique to region
   summarise(n_collections = n(), # count number of collections per species
-            mean_latitude = mean(decimallatitude), # a crude metric of geographic distribution
+            mean_latitude = mean(decimalLatitude), # a crude metric of geographic distribution
             elev_range = max(elevation) - min(elevation), # Elev range (response variable).
             temp_range = max(bio5) - min(bio6), # Temp range (response variable)
             precip_range = max(bio13) - min(bio14)) %>% # Ppt range (response variable)
@@ -569,10 +579,10 @@ tmp_trop = sp_pairs_angiosperms_long_alldata %>% # This tibble is grouped by spe
 tmp_stemp = sp_pairs_angiosperms_long_alldata %>% # This tibble is grouped by species.
   ungroup() %>%
   group_by(tree_node) %>% # Important so sister pairs are not widespread across regions
-  filter(max(decimallatitude) < -23.437) %>% # unique to S. Temp.
+  filter(max(decimalLatitude) < -23.437) %>% # unique to S. Temp.
   group_by(species, tree_node, pair_age, pair, class) %>% # just for sorting final table and double check pairs are unique to region
   summarise(n_collections = n(), # count number of collections per species
-            mean_latitude = mean(decimallatitude), # a crude metric of geographic distribution
+            mean_latitude = mean(decimalLatitude), # a crude metric of geographic distribution
             elev_range = max(elevation) - min(elevation), # Elev range (response variable).
             temp_range = max(bio5) - min(bio6), # Temp range (response variable)
             precip_range = max(bio13) - min(bio14)) %>% # Ppt range (response variable)
@@ -587,9 +597,34 @@ sp_pairs_angiosperms_elev_biocl_range = bind_rows(
   tmp_stemp) %>% 
   ungroup()
 
-# This table has 1462 species, N. Temp 1004, Tropics 188, and S. Temp 270
-# Because the table with all data pre-filter by latitude has 2692 species, this means
-# that 2692-1462 = 1230 species have sisters across latitudes
+# Check table for potential outliers
+ggplot(sp_pairs_angiosperms_elev_biocl_range,
+       aes(x = region,
+           y = elev_range)) +
+  geom_boxplot(outlier.alpha = 0.5) +
+  theme_classic() +
+  xlab("Geographic region") +
+  ylab("Elevation range") +
+  theme(axis.text.x = element_text(size = 8)) 
+
+# clearly a really strange plant with almost 7000 meters of range. Most likely an error in data
+# entry. Detect outlier
+
+sp_pairs_angiosperms_elev_biocl_range %>% 
+  filter(elev_range == max(elev_range))
+
+# remove outlier and sister using tree_node (NOTE Nov 2023: we already ran analyses with the outlier and results
+# do not change )
+
+sp_pairs_angiosperms_elev_biocl_range = sp_pairs_angiosperms_elev_biocl_range %>%
+  filter(tree_node  != 102085)
+
+# see table to count totals
+sp_pairs_angiosperms_elev_biocl_range
+
+# This table has 1486 species, N. Temp 1012, Tropics 190, and S. Temp 284
+# Because the table with all data pre-filter by latitude has 2734 species, this means
+# that 2734-1486 = 1248 species have sisters across latitudes
 
 # uncomment below to confirm all species are unique to each region. n should start at 1
 # sp_pairs_angiosperms_elev_biocl_range %>%
@@ -630,22 +665,8 @@ sp_pairs_angiosperms_elev_biocl_range_means_perGroup_perRegion = sp_pairs_angios
 sp_pairs_angiosperms_elev_biocl_range_means_perGroup_perRegion
 
 
-#### Save tables with all data ####
 
-# Table with all data (geographic coordinates and Bioclimatic variables) for all species 
-# pairs, including species widespread across geographic regions. To get species restricted
-# to geographic regions see line 537 onward
-#saveRDS(sp_pairs_angiosperms_long_alldata, "data_Dec2022/sp_pairs_angiosperms_long_alldata.RDS")
 
-# Table with all geographic data only for species restricted to each geographic region
-#saveRDS(sp_pairs_angiosperms_long_alldata_NotWidespread, "data_Dec2022/sp_pairs_angiosperms_long_alldata_NotWidespread.RDS")
-
-# Table with ranges per species for all species pairs restricted to each 
-# geographic regions
-#saveRDS(sp_pairs_angiosperms_elev_biocl_range, "data_Dec2022/sp_pairs_angiosperms_elev_biocl_range.RDS")
-
-# Read in table with only elevation and bioclimatic range
-#sp_pairs_angiosperms_elev_biocl_range = readRDS("data_Dec2022/sp_pairs_angiosperms_elev_biocl_range.RDS")
 
 #### Elevation and Bioclimatic Overlap ####
 
@@ -756,7 +777,7 @@ sp_pairs_angiosperms_elev_biocl_overlap_wide = pivot_wider(
   names_glue = "{pair}_{.value}")
 
 
-# Estimate elevation an temperature overlap
+# Estimate elevation and temperature overlap
 # See Cadena et al 2011 PRSb and Kozak and Wiens 2007 PRSb for eqs.
 
 sp_pairs_angiosperms_elev_biocl_range_overlap = sp_pairs_angiosperms_elev_biocl_overlap_wide %>% 
@@ -942,8 +963,27 @@ sp_pairs_angiosperms_elev_biocl_range_overlap = sp_pairs_angiosperms_elev_biocl_
 # THIS TABLE HAS ALL THE DATA WE NEED. IT'S ORGANIZED BY PAIRS IN EACH ROW 
 # IT ALSO INCLUDES THE RESULTS FROM THE OVERLAP ANALYSES.
 sp_pairs_angiosperms_elev_biocl_range_overlap
-# 731 species pairs
+# 743 species pairs
 
+
+# Visualize species chosen for analysis in the phylogeny
+sp_included = sp_pairs_angiosperms_elev_biocl_range  %>%
+  mutate(across("species", ~str_replace(., " ", "_")))
+
+
+p = ggtree(GBOTB.extended.TPL, 
+           size = 0.1,
+           color = "gray70",
+           layout = "circular")# +
+  #geom_tiplab(align = TRUE)
+
+p %<+% sp_included + 
+  geom_tippoint(aes(color = region), 
+                size = 1.5) +
+  scale_colour_manual(values=c("#0072B2",
+                               "#009E73",
+                               "#D55E00"), 
+                      na.translate=FALSE)
 
 
 #............................................................................
