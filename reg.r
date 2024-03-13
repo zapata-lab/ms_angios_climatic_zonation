@@ -1,11 +1,28 @@
 
 library(data.table)
 library(INLA)
+library(ape)
+library(MCMCglmm)
 
+# read data
 d = readRDS("/Users/quintero/repos/ms_angios_climatic_zonation/final_data_table.rds")
 
 # set as data.table
 setDT(d)
+
+# read tree
+tree = read.tree('/Users/quintero/repos/ms_angios_climatic_zonation/tree.tre')
+tree$node.label = NULL
+
+# precision matrix
+ivcv = MCMCglmm::inverseA(tree, nodes = "TIPS", scale = TRUE)$Ainv
+
+# match with data
+d[,sp1 := gsub(' ', '_', sp1_species)]
+d[,sp2 := gsub(' ', '_', sp2_species)]
+
+d[,spid1 := match(d[,sp1], rownames(ivcv))]
+d[,spid2 := match(d[,sp2], rownames(ivcv))]
 
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -17,16 +34,17 @@ d[, pair := 1:nrow(d)]
 
 # 1st
 d1 = d[, .(sp1_species, sp1_n_collections, sp1_mean_latitude, sp1_elev_range,
-           sp1_temp_range, sp1_precip_range, region, pair)]
+           sp1_temp_range, sp1_precip_range, region, pair, spid1)]
 
-setnames(d1, c('sp', 'n', 'l', 'er', 'tr', 'pr', 'r', 'pid'))
+setnames(d1, c('sp', 'n', 'l', 'er', 'tr', 'pr', 'r', 'pid', 'spid'))
 
 # 2st
 d2 = d[, .(sp2_species, sp2_n_collections, sp2_mean_latitude, sp2_elev_range,
-           sp2_temp_range, sp2_precip_range, region, pair)]
-setnames(d2, c('sp', 'n', 'l', 'er', 'tr', 'pr', 'r', 'pid'))
+           sp2_temp_range, sp2_precip_range, region, pair, spid2)]
+setnames(d2, c('sp', 'n', 'l', 'er', 'tr', 'pr', 'r', 'pid', 'spid'))
 
 di = rbind(d1,d2)
+
 
 # define random effects
 di[, `:=`(b_0 = pid,
@@ -41,13 +59,18 @@ di[r == 'N. Temperate' | r == 'S. Temperate', rc := "E"]
 # scale variables
 di[, n_s  := scale(n)]
 di[, l_s  := scale(l)]
-di[, al_s := scale(l)]
 
+
+# complexity prior
+pcprior = list(prec = list(
+  prior="pc.prec",
+  param = c(20, 0.1)) 
+)
 
 #########
 # elevation regression on the tropics/extra-tropics level
 #########
-f = er ~ n_s + rc + f(b_0, model = "iid")
+f = er ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
 r = inla(f, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
@@ -66,7 +89,7 @@ y = inla.dmarginal(x, eTr)
 eTr = matrix(c(x,y), nrow = length(x))
 
 # temperature regression on the tropics/extra-tropics level
-f = tr ~ n_s + rc + f(b_0, model = "iid")
+f = tr ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
 r = inla(f, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
@@ -120,7 +143,7 @@ dev.off()
 #########
 # elevation regression on the S/T/N latitudes level
 #########
-f = er ~ n_s + r + f(b_0, model = "iid")
+f = er ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
 r = inla(f, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
@@ -146,7 +169,7 @@ eT = matrix(c(x,y), nrow = length(x))
 
 
 # temperature regression on the S/T/N latitudes level
-f = tr ~ n_s + r + f(b_0, model = "iid")
+f = tr ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
 r = inla(f, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
@@ -212,19 +235,13 @@ dev.off()
 #########
 # regression with latitude
 #########
-f = er ~ n_s + l_s + I(l_s^2)         + 
-         f(b_0, model = "iid")        + 
-         f(b_1, l_s, model = "iid")
-
+f = er ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
 re = inla(f, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
 summary(re)
 
-f = tr ~ n_s + l_s + I(l_s^2)       + 
-         f(b_0, model = "iid")      + 
-         f(b_1, l_s, model = "iid")
-
+f = tr ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
 rt = inla(f, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
@@ -246,9 +263,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/range_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.001, 0.95), re$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.001, 0.95), re$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.001, 0.95), re$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`I(l_s^2)`)
   y = exp(mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2)
   lines(x, y, col = '#02315E', lwd = 2)
   y = exp(mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2)
@@ -266,9 +283,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/range_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.001, 0.95), rt$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.001, 0.95), rt$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.001, 0.95), rt$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`I(l_s^2)`)
   y = exp(mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2)
   lines(x, y, col = '#02315E', lwd = 2)
   y = exp(mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2)
@@ -292,6 +309,29 @@ d[,to := temperature_overlap/12.0]
 d[region == 'Tropical', rc := "T"]
 d[region == 'N. Temperate' | region == 'S. Temperate', rc := "E"]
 
+# min number of occurrences
+d[,n_mn := scale(pmin(sp1_n_collections, sp2_n_collections))]
+
+# rearrange tree to only contain the pendant edge to the sister species
+t0 = keep.tip(tree, d[,sp1])
+
+# remove branch lengths of sister species from the tree
+t0$tip.label
+d = d[match(t0$tip.label,sp1)]
+el = d[, pair_age]
+
+t0$edge.length[t0$edge[,2] %in% 1:743] = 
+  t0$edge.length[t0$edge[,2] %in% 1:743] - el
+
+# scale tree
+s = branching.times(tree)[1] - min(el)
+
+t0$edge.length = t0$edge.length/s
+
+# precision matrix
+ivcv0 = MCMCglmm::inverseA(t0, nodes = "TIPS", scale = F)$Ainv
+
+d[,spid := match(d[,sp1], rownames(ivcv0))]
 
 
 
@@ -300,7 +340,7 @@ d[region == 'N. Temperate' | region == 'S. Temperate', rc := "E"]
 #########
 
 # elevation overlap
-f = eo ~ pair_age + rc
+f = eo ~ pair_age + n_mn + rc + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior)
 re = inla(f, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
@@ -321,7 +361,7 @@ eTr = matrix(c(exp(x)/(1 + exp(x)),y), nrow = length(x))
 
 
 # temperature overlap
-f = to ~ pair_age + rc 
+f = to ~ pair_age + n_mn + rc + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
 rt = inla(f, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
@@ -379,7 +419,7 @@ dev.off()
 #########
 
 # elevation overlap
-f = eo ~ pair_age + region
+f = eo ~ pair_age + n_mn + region + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
 re = inla(f, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
@@ -404,7 +444,7 @@ eN = matrix(c(exp(x)/(1 + exp(x)),y), nrow = length(x))
 
 
 # temperature overlap
-f = to ~ pair_age + region
+f = to ~ pair_age + n_mn + region + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
 rt = inla(f, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
@@ -475,14 +515,14 @@ d[, l   := (sp1_mean_latitude + sp2_mean_latitude)/2]
 d[, l_s := scale(l)]
 
 # elevation overlap
-f = eo ~ pair_age + l_s + I(l_s^2)
+f = eo ~ pair_age + n_mn + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
 re = inla(f, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
 summary(re)
 
 # temperature overlap
-f = to ~ pair_age + l_s + I(l_s^2)
+f = to ~ pair_age + n_mn + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
 rt = inla(f, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
@@ -506,9 +546,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.001, 0.95), re$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.001, 0.95), re$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.001, 0.95), re$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`I(l_s^2)`)
   y = mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2
   lines(x, exp(y)/(1+exp(y)), col = '#02315E', lwd = 2)
   y = mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2
@@ -526,9 +566,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.001, 0.95), rt$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.001, 0.95), rt$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.001, 0.95), rt$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`I(l_s^2)`)
   y = mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2
   lines(x, exp(y)/(1+exp(y)), col = '#02315E', lwd = 2)
   y = mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2
@@ -543,13 +583,13 @@ dev.off()
 library(zoib)
 
 
-r = zoib(eo ~ pair_age + abs(l_s) | 1 | abs(l_s) | abs(l_s), 
+r_zoib_e = zoib(eo ~ pair_age + n_mn + abs(l_s) | pair_age + abs(l_s) | abs(l_s) | abs(l_s), 
   data = d, random = 0, zero.inflation = TRUE, one.inflation = TRUE, 
   n.iter = 1050, n.thin = 5, n.burn=50)
-summary(r$coeff)
+summary(r_zoib_e$coeff)
 
 
-r = zoib(to ~ pair_age + abs(l_s)| 1 | abs(l_s),
+r_zoib_t = zoib(to ~ pair_age + n_mn + abs(l_s) | pair_age + abs(l_s) | abs(l_s) | abs(l_s), 
   data = d, random = 0, zero.inflation = TRUE, one.inflation = FALSE, 
   n.iter = 1050, n.thin = 5, n.burn=50)
-summary(r$coeff)
+summary(r_zoib_t$coeff)
