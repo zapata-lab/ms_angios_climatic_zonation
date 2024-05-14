@@ -582,14 +582,59 @@ dev.off()
 
 library(zoib)
 
+d[, al_s := scale(abs(l))]
 
-r_zoib_e = zoib(eo ~ pair_age + n_mn + abs(l_s) | pair_age + abs(l_s) | abs(l_s) | abs(l_s), 
+# run analyses
+r_zoib_e = zoib(eo ~ pair_age + n_mn + al_s | pair_age + n_mn + al_s | al_s | al_s, 
   data = d, random = 0, zero.inflation = TRUE, one.inflation = TRUE, 
   n.iter = 1050, n.thin = 5, n.burn=50)
 summary(r_zoib_e$coeff)
 
+# make new data to predict effect of latitude while holding pari age and number of records
+#constant
+xnew  = data.table(pair_age = mean(d[,pair_age]),
+                   al_s = seq(-1, 1, 0.1), 
+                   n_mn = mean(d[,n_mn]))
 
-r_zoib_t = zoib(to ~ pair_age + n_mn + abs(l_s) | pair_age + abs(l_s) | abs(l_s) | abs(l_s), 
+r_zoib_t = zoib(to ~ pair_age + n_mn + al_s | pair_age + n_mn + al_s | al_s, 
   data = d, random = 0, zero.inflation = TRUE, one.inflation = FALSE, 
   n.iter = 1050, n.thin = 5, n.burn=50)
 summary(r_zoib_t$coeff)
+
+
+xls = range(d[,abs(l)])
+xls = signif(seq(xls[1], xls[2], length.out = 5), 2)
+
+
+# make prediction plots
+pdf('~/data/ms_angios_climatic_zonation/plots/over_lat_zoib.pdf', 
+  height = 5, width = 8)
+
+  par(mfrow = c(1,2), bty = 'n', las = 1)
+
+  # predict effect of latitude
+  ypred = pred.zoib(r_zoib_e, xnew)
+  ynew = ypred$summary
+
+  plot(xnew$al_s, ynew[,2], xlab = 'Absolute latitude', type = 'l', 
+    ylim = range(ynew[,7:8]), ylab = 'Posterior predicted elevation overlap', 
+    lwd = 2, xaxt = 'n', col = '#02315E')
+  axis(1, at = seq(-1, 1, length.out = 5), labels = xls)
+  lines(xnew$al_s, ynew[,7], lty = 2, lwd = 2, col = '#02315E')
+  lines(xnew$al_s, ynew[,8], lty = 2, lwd = 2, col = '#02315E')
+
+  # predict effect of latitude
+  ypred = pred.zoib(r_zoib_t, xnew)
+  ynew = ypred$summary
+
+  plot(xnew$al_s, ynew[,2], xlab = 'Absolute latitude', type = 'l', 
+    ylim = range(ynew[,7:8]), ylab = 'Posterior predicted temperature overlap',
+    lwd = 2, xaxt = 'n', col = '#02315E')
+  axis(1, at = seq(-1, 1, length.out = 5), labels = xls)
+  lines(xnew$al_s, ynew[,7], lty = 2, lwd = 2, col = '#02315E')
+  lines(xnew$al_s, ynew[,8], lty = 2, lwd = 2, col = '#02315E')
+
+
+dev.off()
+
+
