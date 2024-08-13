@@ -1,3 +1,7 @@
+# This script runs all the regression analyses, generates output plots and tables
+#
+# By:   The authors
+# Date: Aug 2024
 
 library(data.table)
 library(INLA)
@@ -5,13 +9,13 @@ library(ape)
 library(MCMCglmm)
 
 # read data
-d = readRDS("/Users/quintero/repos/ms_angios_climatic_zonation/final_data_table.rds")
+d = readRDS("../data/final_data_table.rds")
 
 # set as data.table
 setDT(d)
 
 # read tree
-tree = read.tree('/Users/quintero/repos/ms_angios_climatic_zonation/tree.tre')
+tree = read.tree("../data/tree.tre")
 tree$node.label = NULL
 
 # precision matrix
@@ -60,6 +64,8 @@ di[r == 'N. Temperate' | r == 'S. Temperate', rc := "E"]
 di[, n_s  := scale(n)]
 di[, l_s  := scale(l)]
 
+# standardize temp range by elev range
+di[, trer  := tr/er]
 
 # complexity prior
 pcprior = list(prec = list(
@@ -70,15 +76,15 @@ pcprior = list(prec = list(
 #########
 # elevation regression on the tropics/extra-tropics level
 #########
-f = er ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
-r = inla(f, 
+f_er_rc = er ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_er_rc = inla(f_er_rc, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
-summary(r)
+summary(r_er_rc)
 
-# make posterior marginal effect plot
-eTe = r$marginals.fixed$`(Intercept)`
-eTr = r$marginals.fixed$rc
+# extract posterior marginal effect for plot
+eTe = r_er_rc$marginals.fixed$`(Intercept)`
+eTr = r_er_rc$marginals.fixed$rc
 eTr[,1] = eTe[,1] + eTr[,1]
 
 x = seq(min(eTe[,1]), max(eTe[,1]), 0.001)
@@ -88,16 +94,18 @@ x = seq(min(eTr[,1]), max(eTr[,1]), 0.001)
 y = inla.dmarginal(x, eTr)
 eTr = matrix(c(x,y), nrow = length(x))
 
+#########
 # temperature regression on the tropics/extra-tropics level
-f = tr ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
-r = inla(f, 
+#########
+f_tr_rc = tr ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_tr_rc = inla(f_tr_rc, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
-summary(r)
+summary(r_tr_rc)
 
-# make posterior marginal effect plot
-tTe = r$marginals.fixed$`(Intercept)`
-tTr = r$marginals.fixed$rc
+# extract posterior marginal effect for plot
+tTe = r_tr_rc$marginals.fixed$`(Intercept)`
+tTr = r_tr_rc$marginals.fixed$rc
 tTr[,1] = tTe[,1] + tTr[,1]
 
 x = seq(min(tTe[,1]), max(tTe[,1]), 0.001)
@@ -107,8 +115,8 @@ x = seq(min(tTr[,1]), max(tTr[,1]), 0.001)
 y = inla.dmarginal(x, tTr)
 tTr = matrix(c(x,y), nrow = length(x))
 
-
-pdf('~/data/ms_angios_climatic_zonation/plots/range_trop_temp.pdf', 
+# make posterior marginal effect plots
+pdf('../plots/range_trop_temp.pdf', 
   height = 6, width = 8)
   par(mfrow = c(1,2))
 
@@ -143,16 +151,16 @@ dev.off()
 #########
 # elevation regression on the S/T/N latitudes level
 #########
-f = er ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
-r = inla(f, 
+f_er_r = er ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_er_r = inla(f_er_r, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
-summary(r)
+summary(r_er_r)
 
-# make posterior marginal effect plot
-eN = r$marginals.fixed$`(Intercept)`
-eS = r$marginals.fixed$`rS. Temperate`
-eT = r$marginals.fixed$rTropical
+# extract posterior marginal effect for plot
+eN = r_er_r$marginals.fixed$`(Intercept)`
+eS = r_er_r$marginals.fixed$`rS. Temperate`
+eT = r_er_r$marginals.fixed$rTropical
 eS[,1] = eN[,1] + eS[,1]
 eT[,1] = eN[,1] + eT[,1]
 
@@ -168,17 +176,19 @@ y = inla.dmarginal(x, eT)
 eT = matrix(c(x,y), nrow = length(x))
 
 
+#########
 # temperature regression on the S/T/N latitudes level
-f = tr ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
-r = inla(f, 
+#########
+f_tr_r = tr ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_tr_r = inla(f_tr_r, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
-summary(r)
+summary(r_tr_r)
 
-# make posterior marginal effect plot
-tN = r$marginals.fixed$`(Intercept)`
-tS = r$marginals.fixed$`rS. Temperate`
-tT = r$marginals.fixed$rTropical
+# extract posterior marginal effect for plot
+tN = r_tr_r$marginals.fixed$`(Intercept)`
+tS = r_tr_r$marginals.fixed$`rS. Temperate`
+tT = r_tr_r$marginals.fixed$rTropical
 tS[,1] = tN[,1] + tS[,1]
 tT[,1] = tN[,1] + tT[,1]
 
@@ -194,7 +204,8 @@ y = inla.dmarginal(x, tT)
 tT = matrix(c(x,y), nrow = length(x))
 
 
-pdf('~/data/ms_angios_climatic_zonation/plots/range_S_T_N.pdf', 
+# make posterior marginal effect plot
+pdf('../plots/range_S_T_N.pdf', 
   height = 6, width = 8)
   par(mfrow = c(1,2))
 
@@ -233,25 +244,125 @@ dev.off()
 
 
 #########
+# temp range by elev range regression on the tropics/extra-tropics level
+#########
+
+f_trer_rc = trer ~ n_s + rc + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_trer_rc = inla(f_trer_rc, 
+  data = di, family = "lognormal", 
+  control.compute=list(return.marginals.predictor=TRUE))
+summary(r_trer_rc)
+
+# extract posterior marginal effect for plot
+tercTe = r_trer_rc$marginals.fixed$`(Intercept)`
+tercTr = r_trer_rc$marginals.fixed$rc
+tercTr[,1] = tercTe[,1] + tercTr[,1]
+
+x = seq(min(tercTe[,1]), max(tercTe[,1]), 0.001)
+y = inla.dmarginal(x, tercTe)
+tercTe = matrix(c(x,y), nrow = length(x))
+x = seq(min(tercTr[,1]), max(tercTr[,1]), 0.001)
+y = inla.dmarginal(x, tercTr)
+eTr = matrix(c(x,y), nrow = length(x))
+
+
+#########
+# temp range by elev range regression on the S/T/N latitudes level
+#########
+f_trer_r = trer ~ n_s + r + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_trer_r = inla(f_trer_r, 
+  data = di, family = "lognormal", 
+  control.compute=list(return.marginals.predictor=TRUE))
+summary(r_trer_r)
+
+# extract posterior marginal effect for plot
+terN = r_trer_r$marginals.fixed$`(Intercept)`
+terS = r_trer_r$marginals.fixed$`rS. Temperate`
+terT = r_trer_r$marginals.fixed$rTropical
+terS[,1] = terN[,1] + terS[,1]
+terT[,1] = terN[,1] + terT[,1]
+
+
+x = seq(min(terN[,1]), max(terN[,1]), 0.001)
+y = inla.dmarginal(x, terN)
+terN = matrix(c(x,y), nrow = length(x))
+x = seq(min(terS[,1]), max(terS[,1]), 0.001)
+y = inla.dmarginal(x, terS)
+terS = matrix(c(x,y), nrow = length(x))
+x = seq(min(terT[,1]), max(terT[,1]), 0.001)
+y = inla.dmarginal(x, terT)
+terT = matrix(c(x,y), nrow = length(x))
+
+
+
+# make posterior marginal effect plot
+pdf('../plots/temp_elev_range_trop_temp.pdf', 
+  height = 6, width = 8)
+  par(mfrow = c(1,2))
+
+  plot(1, type = 'n', xlim = c(-0.5,1.5), ylim = c(0, 0.3), 
+    xlab = '', ylab = 'Temperature range / Elevation range', xaxt = 'n', las =  1, bty = 'n')
+  axis(1, at = 0:1, labels = c('Tropical', 'Temperate'))
+
+  y = di[rc == 'T', trer]
+  points((runif(length(y)) - 0.5)*0.5, y, pch = 20, col = rgb(0,0,0,0.03))
+  y = di[rc == 'E', trer]
+  points((runif(length(y)) + 1.5)*0.5, y, pch = 20, col = rgb(0,0,0,0.03))
+
+  polygon(0.3*tercTr[,2]/max(tercTr[,2]),exp(tercTr[,1]), col = '#02315EEE', border = NA)
+  polygon(0.3*tercTe[,2]/max(tercTe[,2]) + 1,exp(tercTe[,1]), col = '#02315EEE', border = NA)
+
+
+  plot(1, type = 'n', xlim = c(-0.5,2.5), ylim = c(0,0.3), 
+    xlab = '', ylab = 'Temperature range / Elevational range', xaxt = 'n', las =  1, bty = 'n')
+  axis(1, at = 0:2, labels = c('Southern','Tropical', 'Northern'))
+
+  y = di[r == 'S. Temperate', trer]
+  points(runif(length(y))*0.5 - 0.25, y, pch = 20, col = rgb(0,0,0,0.03))
+  y = di[r == 'Tropical', trer]
+  points(runif(length(y))*0.5 + 0.75, y, pch = 20, col = rgb(0,0,0,0.03))
+  y = di[r == 'N. Temperate', trer]
+  points(runif(length(y))*0.5 + 1.75, y, pch = 20, col = rgb(0,0,0,0.03))
+
+  polygon(0.3*terS[,2]/max(terS[,2]),     exp(terS[,1]), col = '#02315EEE', border = NA)
+  polygon(0.3*terT[,2]/max(terT[,2]) + 1, exp(terT[,1]), col = '#02315EEE', border = NA)
+  polygon(0.3*terN[,2]/max(terN[,2]) + 2, exp(terN[,1]), col = '#02315EEE', border = NA)
+
+dev.off()
+
+
+
+
+
+
+
+#########
 # regression with latitude
 #########
-f = er ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
-re = inla(f, 
+f_er_ls = er ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_er_ls = inla(f_er_ls, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
-summary(re)
+summary(r_er_ls)
 
-f = tr ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
-rt = inla(f, 
+f_tr_ls = tr ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_tr_ls = inla(f_tr_ls, 
   data = di, family = "lognormal", 
   control.compute=list(return.marginals.predictor=TRUE))
-summary(rt)
+summary(r_tr_ls)
+
+f_trer_ls = trer ~ n_s + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv, hyper = pcprior)
+r_trer_ls = inla(f_trer_ls, 
+  data = di, family = "lognormal", 
+  control.compute=list(return.marginals.predictor=TRUE))
+summary(r_trer_ls)
 
 
-pdf('~/data/ms_angios_climatic_zonation/plots/range_lat.pdf', 
+
+pdf('../plots/range_lat_all.pdf', 
   height = 6, width = 8)
 
-  par(mfrow = c(1,2))
+  par(mfrow = c(1,3))
 
   plot(di[,l_s], di[,er], xlab = 'Latitude', 
     ylab = 'Elevational range', xaxt = 'n', las =  1, bty = 'n', pch = 20,
@@ -263,9 +374,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/range_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), r_er_ls$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), r_er_ls$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), r_er_ls$marginals.fixed$`I(l_s^2)`)
   y = exp(mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2)
   lines(x, y, col = '#02315E', lwd = 2)
   y = exp(mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2)
@@ -283,16 +394,42 @@ pdf('~/data/ms_angios_climatic_zonation/plots/range_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), r_tr_ls$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), r_tr_ls$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), r_tr_ls$marginals.fixed$`I(l_s^2)`)
   y = exp(mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2)
   lines(x, y, col = '#02315E', lwd = 2)
   y = exp(mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2)
   lines(x, y, col = '#02315E', lty = 2)
   y = exp(mean(b_0[2,2]) +  mean(b_1[2,2])*x + mean(b_2[2,2])*x^2)
   lines(x, y, col = '#02315E', lty = 2)
+
+ plot(di[,l_s], di[,trer], xlab = 'Latitude', 
+    ylab = 'Temperature range / Elevation range', xaxt = 'n', las =  1, bty = 'n', pch = 20,
+    col = rgb(0,0,0,0.03))
+  x = seq(min(di[,l_s]), max(di[,l_s]), 0.01)
+  c = attr(scale(di[,l]), "scaled:center")
+  s = attr(scale(di[,l]), "scaled:scale")
+  rl = round(range(di[,l]))
+  labs = seq(rl[1], rl[2], 15)
+  axis(1, at = (labs - c)/s, labels = labs)
+
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), r_trer_ls$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), r_trer_ls$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), r_trer_ls$marginals.fixed$`I(l_s^2)`)
+  y = exp(mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2)
+  lines(x, y, col = '#02315E', lwd = 2)
+  y = exp(mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2)
+  lines(x, y, col = '#02315E', lty = 2)
+  y = exp(mean(b_0[2,2]) +  mean(b_1[2,2])*x + mean(b_2[2,2])*x^2)
+  lines(x, y, col = '#02315E', lty = 2)
+
+  
 dev.off()
+
+
+
+
 
 
 
@@ -340,15 +477,15 @@ d[,spid := match(d[,sp1], rownames(ivcv0))]
 #########
 
 # elevation overlap
-f = eo ~ pair_age + n_mn + rc + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior)
-re = inla(f, data = d, family = "beta", 
+f_eo_rc = eo ~ pair_age + n_mn + rc + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior)
+r_eo_rc = inla(f_eo_rc, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
-summary(re)
+summary(r_eo_rc)
 
 # make posterior marginal effect plot
-eTe = re$marginals.fixed$`(Intercept)`
-eTr = re$marginals.fixed$rcT
+eTe = r_eo_rc$marginals.fixed$`(Intercept)`
+eTr = r_eo_rc$marginals.fixed$rcT
 eTr[,1] = eTe[,1] + eTr[,1]
 
 x = seq(min(eTe[,1]), max(eTe[,1]), 0.001)
@@ -361,15 +498,15 @@ eTr = matrix(c(exp(x)/(1 + exp(x)),y), nrow = length(x))
 
 
 # temperature overlap
-f = to ~ pair_age + n_mn + rc + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
-rt = inla(f, data = d, family = "beta", 
+f_to_rc = to ~ pair_age + n_mn + rc + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
+r_to_rc = inla(f_to_rc, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
-summary(rt)
+summary(r_to_rc)
 
 # make posterior marginal effect plot
-tTe = rt$marginals.fixed$`(Intercept)`
-tTr = rt$marginals.fixed$rcT
+tTe = r_to_rc$marginals.fixed$`(Intercept)`
+tTr = r_to_rc$marginals.fixed$rcT
 tTr[,1] = tTe[,1] + tTr[,1]
 
 x = seq(min(tTe[,1]), max(tTe[,1]), 0.001)
@@ -380,7 +517,7 @@ x = seq(min(tTr[,1]), max(tTr[,1]), 0.001)
 y = inla.dmarginal(x, tTr)
 tTr = matrix(c(exp(x)/(1 + exp(x)),y), nrow = length(x))
 
-pdf('~/data/ms_angios_climatic_zonation/plots/over_trop_temp.pdf', 
+pdf('../plots/over_trop_temp.pdf', 
   height = 6, width = 8)
   par(mfrow = c(1,2))
 
@@ -408,10 +545,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_trop_temp.pdf',
 
   polygon(0.3*tTr[,2]/max(tTr[,2]),    tTr[,1], col = '#02315EEE', border = NA)
   polygon(0.3*tTe[,2]/max(tTe[,2]) + 1,tTe[,1], col = '#02315EEE', border = NA)
+
+
 dev.off()
-
-
-
 
 
 #########
@@ -419,16 +555,16 @@ dev.off()
 #########
 
 # elevation overlap
-f = eo ~ pair_age + n_mn + region + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
-re = inla(f, data = d, family = "beta", 
+f_eo_r = eo ~ pair_age + n_mn + region + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
+r_eo_r = inla(f_eo_r, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
-summary(re)
+summary(r_eo_r)
 
 # make posterior marginal effect plot
-eN = re$marginals.fixed$`(Intercept)`
-eT = re$marginals.fixed$regionTropical
-eS = re$marginals.fixed$`regionS. Temperate`
+eN = r_eo_r$marginals.fixed$`(Intercept)`
+eT = r_eo_r$marginals.fixed$regionTropical
+eS = r_eo_r$marginals.fixed$`regionS. Temperate`
 eT[,1] = eT[,1] + eN[,1]
 eS[,1] = eS[,1] + eN[,1]
 
@@ -444,16 +580,16 @@ eN = matrix(c(exp(x)/(1 + exp(x)),y), nrow = length(x))
 
 
 # temperature overlap
-f = to ~ pair_age + n_mn + region + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
-rt = inla(f, data = d, family = "beta", 
+f_to_r = to ~ pair_age + n_mn + region + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
+r_to_r = inla(f_to_r, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
-summary(rt)
+summary(r_to_r)
 
 # make posterior marginal effect plot
-tN = rt$marginals.fixed$`(Intercept)`
-tT = rt$marginals.fixed$regionTropical
-tS = rt$marginals.fixed$`regionS. Temperate`
+tN = r_to_r$marginals.fixed$`(Intercept)`
+tT = r_to_r$marginals.fixed$regionTropical
+tS = r_to_r$marginals.fixed$`regionS. Temperate`
 tT[,1] = tT[,1] + tN[,1]
 tS[,1] = tS[,1] + tN[,1]
 
@@ -467,7 +603,7 @@ x = seq(min(tN[,1]), max(tN[,1]), 0.001)
 y = inla.dmarginal(x, tN)
 tN = matrix(c(exp(x)/(1 + exp(x)),y), nrow = length(x))
 
-pdf('~/data/ms_angios_climatic_zonation/plots/over_S_T_N.pdf', 
+pdf('../plots/over_S_T_N.pdf', 
   height = 6, width = 8)
   par(mfrow = c(1,2))
 
@@ -515,23 +651,21 @@ d[, l   := (sp1_mean_latitude + sp2_mean_latitude)/2]
 d[, l_s := scale(l)]
 
 # elevation overlap
-f = eo ~ pair_age + n_mn + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
-re = inla(f, data = d, family = "beta", 
+f_eo_ls = eo ~ pair_age + n_mn + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
+r_eo_ls = inla(f_eo_ls, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
-summary(re)
+summary(r_eo_ls)
 
 # temperature overlap
-f = to ~ pair_age + n_mn + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
-rt = inla(f, data = d, family = "beta", 
+f_to_ls = to ~ pair_age + n_mn + l_s + I(l_s^2) + f(spid, model = "generic0", Cmatrix = ivcv0, hyper = pcprior) 
+r_to_ls = inla(f_to_ls, data = d, family = "beta", 
   control.family  = list(beta.censor.value = 0.00001),
   control.compute = list(return.marginals.predictor=TRUE))
-summary(rt)
+summary(r_to_ls)
 
 
-
-
-pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf', 
+pdf('../plots/over_lat.pdf', 
   height = 6, width = 8)
 
   par(mfrow = c(1,2))
@@ -546,9 +680,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.025, 0.975), re$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), r_eo_ls$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), r_eo_ls$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), r_eo_ls$marginals.fixed$`I(l_s^2)`)
   y = mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2
   lines(x, exp(y)/(1+exp(y)), col = '#02315E', lwd = 2)
   y = mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2
@@ -566,9 +700,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf',
   labs = seq(rl[1], rl[2], 15)
   axis(1, at = (labs - c)/s, labels = labs)
 
-  b_0 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`(Intercept)`)
-  b_1 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$l_s)
-  b_2 = inla.hpdmarginal(c(0.025, 0.975), rt$marginals.fixed$`I(l_s^2)`)
+  b_0 = inla.hpdmarginal(c(0.025, 0.975), r_to_ls$marginals.fixed$`(Intercept)`)
+  b_1 = inla.hpdmarginal(c(0.025, 0.975), r_to_ls$marginals.fixed$l_s)
+  b_2 = inla.hpdmarginal(c(0.025, 0.975), r_to_ls$marginals.fixed$`I(l_s^2)`)
   y = mean(b_0[1,]) +  mean(b_1[1,])*x + mean(b_2[1,])*x^2
   lines(x, exp(y)/(1+exp(y)), col = '#02315E', lwd = 2)
   y = mean(b_0[2,1]) +  mean(b_1[2,1])*x + mean(b_2[2,1])*x^2
@@ -578,6 +712,9 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_lat.pdf',
 dev.off()
 
 
+#########
+# zero inflated beta regression
+#########
 
 
 library(zoib)
@@ -607,7 +744,7 @@ xls = signif(seq(xls[1], xls[2], length.out = 5), 2)
 
 
 # make prediction plots
-pdf('~/data/ms_angios_climatic_zonation/plots/over_lat_zoib.pdf', 
+pdf('../plots/over_lat_zoib.pdf', 
   height = 5, width = 8)
 
   par(mfrow = c(1,2), bty = 'n', las = 1)
@@ -636,5 +773,3 @@ pdf('~/data/ms_angios_climatic_zonation/plots/over_lat_zoib.pdf',
 
 
 dev.off()
-
-
