@@ -1,16 +1,12 @@
-# This kernel runs all the data wrangling and computationally intensive data 
-# filtering and analyses for the manuscript presented at 
-# https://github.com/zapata-lab/ms_angios_climatic_zonation
+# This files runs all the data wrangling and computationally intensive data 
+# filtering for the manuscript 
 #
-# Executing this code generates manuscript.RData, which contains analysis
-# results. That file is then read by manuscript.rmd for rendering and
-# presentation of the results.
-#
-# The code presented here is roughly in the order of the analyses presented in 
-# the manuscript, though there are exceptions.
+# Executing this code generates `final_data_table.rds` (uncomment line 1020 to load), which 
+# contains the data used in all analyses. In addition, it generates preliminary plots 
+# (and even extra plots not used in the manuscript)
 #
 # By:   The authors
-# Date: Dec 2022
+# Date: Aug 2024
 #
 
 #### Load libraries ####
@@ -111,10 +107,10 @@ pal = c("#000000", # Black
 #----------------------------#
 # # load gbif occurrences 
 #----------------------------#
-indata_monocots = read_tsv("data_Dec2022/0194948-220831081235567.zip", 
+indata_monocots = read_tsv("../data//0194948-220831081235567.zip", 
                              col_types = columns_gbif)
 
-indata_dicots = read_tsv("data_Dec2022/0195061-220831081235567.zip", 
+indata_dicots = read_tsv("../data/0195061-220831081235567.zip", 
                            col_types = columns_gbif)
 
 indata_angiosperms = rbind(indata_monocots,
@@ -125,39 +121,39 @@ indata_angiosperms = rbind(indata_monocots,
 #
 
 # To estimate Bioclimatic range
-bio5 = raster("wc2.1_30s_bio/wc2.1_30s_bio_5.tif") # Max Temperature of Warmest Month
-bio6 = raster("wc2.1_30s_bio/wc2.1_30s_bio_6.tif") # Min Temperature of Coldest Month
-bio13 = raster("wc2.1_30s_bio/wc2.1_30s_bio_13.tif") # Precipitation of Wettest Month
-bio14 = raster("wc2.1_30s_bio/wc2.1_30s_bio_14.tif") # Precipitation of Driest Month
+bio5 = raster("../data/wc2.1_30s_bio/wc2.1_30s_bio_5.tif") # Max Temperature of Warmest Month
+bio6 = raster("../data/wc2.1_30s_bio/wc2.1_30s_bio_6.tif") # Min Temperature of Coldest Month
+bio13 = raster("../data/wc2.1_30s_bio/wc2.1_30s_bio_13.tif") # Precipitation of Wettest Month
+bio14 = raster("../data/wc2.1_30s_bio/wc2.1_30s_bio_14.tif") # Precipitation of Driest Month
 
 # To estimate Bioclimatic overlap
 # load Min Temp
-tmin_01 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_01.tif") # Min temp Jan
-tmin_02 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_02.tif") # Min temp Feb
-tmin_03 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_03.tif") # Min temp Mar
-tmin_04 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_04.tif") # Min temp Apr
-tmin_05 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_05.tif") # Min temp May
-tmin_06 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_06.tif") # Min temp Jun
-tmin_07 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_07.tif") # Min temp Jul
-tmin_08 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_08.tif") # Min temp Aug
-tmin_09 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_09.tif") # Min temp Sep
-tmin_10 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_10.tif") # Min temp Oct
-tmin_11 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_11.tif") # Min temp Nov
-tmin_12 = raster("wc2.1_30s_tmin/wc2.1_30s_tmin_12.tif") # Min temp Dec
+tmin_01 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_01.tif") # Min temp Jan
+tmin_02 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_02.tif") # Min temp Feb
+tmin_03 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_03.tif") # Min temp Mar
+tmin_04 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_04.tif") # Min temp Apr
+tmin_05 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_05.tif") # Min temp May
+tmin_06 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_06.tif") # Min temp Jun
+tmin_07 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_07.tif") # Min temp Jul
+tmin_08 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_08.tif") # Min temp Aug
+tmin_09 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_09.tif") # Min temp Sep
+tmin_10 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_10.tif") # Min temp Oct
+tmin_11 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_11.tif") # Min temp Nov
+tmin_12 = raster("../data/wc2.1_30s_tmin/wc2.1_30s_tmin_12.tif") # Min temp Dec
  
 # load Max Temp
-tmax_01 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_01.tif") # Max temp Jan
-tmax_02 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_02.tif") # Max temp Feb
-tmax_03 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_03.tif") # Max temp Mar
-tmax_04 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_04.tif") # Max temp Apr
-tmax_05 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_05.tif") # Max temp May
-tmax_06 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_06.tif") # Max temp Jun
-tmax_07 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_07.tif") # Max temp Jul
-tmax_08 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_08.tif") # Max temp Aug
-tmax_09 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_09.tif") # Max temp Sep
-tmax_10 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_10.tif") # Max temp Oct
-tmax_11 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_11.tif") # Min temp Nov
-tmax_12 = raster("wc2.1_30s_tmax/wc2.1_30s_tmax_12.tif") # Min temp Dec
+tmax_01 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_01.tif") # Max temp Jan
+tmax_02 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_02.tif") # Max temp Feb
+tmax_03 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_03.tif") # Max temp Mar
+tmax_04 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_04.tif") # Max temp Apr
+tmax_05 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_05.tif") # Max temp May
+tmax_06 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_06.tif") # Max temp Jun
+tmax_07 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_07.tif") # Max temp Jul
+tmax_08 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_08.tif") # Max temp Aug
+tmax_09 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_09.tif") # Max temp Sep
+tmax_10 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_10.tif") # Max temp Oct
+tmax_11 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_11.tif") # Min temp Nov
+tmax_12 = raster("../data/wc2.1_30s_tmax/wc2.1_30s_tmax_12.tif") # Min temp Dec
 
 #### Explore data ####
 # Check tibbles
@@ -1018,10 +1014,10 @@ final_data_table = sp_pairs_angiosperms_elev_biocl_range_overlap %>%
 
 # save the table above as final_data_table and load it again to facilitate analyses.
 # Uncomment below to save
-#saveRDS(final_data_table, "data_Dec2022/final_data_table.rds")
+#saveRDS(final_data_table, "data/final_data_table.rds")
 
 # uncomment below if want to load the data directly
-#final_data_table = readRDS("data_Dec2022/final_data_table.rds")
+#final_data_table = readRDS("data/final_data_table.rds")
 
 
 # ...........................................................................
