@@ -2,7 +2,7 @@
 
 This repository contains the code and data for the manusctipt:
 
-    Sanchez A, Quintero I, Pedraqza S, Bonilla D, Lohmann LG, Cadena CD, Zapata F. 
+    Sanchez A, Quintero I, Pedraza S, Bonilla D, Lohmann LG, Cadena CD, Zapata F. 
     Caldas meets Janzen: Thermal regimes of montane plants and implications for global 
     patterns of speciation 
     
