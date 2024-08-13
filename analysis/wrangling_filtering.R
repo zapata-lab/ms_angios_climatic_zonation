@@ -129,7 +129,7 @@ indata_angiosperms = rbind(indata_monocots,
 #
 # The raw files are too big to have in this repo. Go to https://www.worldclim.org
 # and download the appropiate files based on the names in the following
-# lines of code. To run code, make sure the directory structure matches the lines
+# lines of code. To run the code, make sure the directory structure matches the lines
 # of code below
 
 # To estimate Bioclimatic range
