@@ -1,9 +1,11 @@
 # This files runs all the data wrangling and computationally intensive data 
 # filtering for the manuscript 
 #
-# Executing this code generates `final_data_table.rds` (uncomment line 1020 to load), which 
+# Executing this code generates `final_data_table.rds` (see line 1027), which 
 # contains the data used in all analyses. In addition, it generates preliminary plots 
-# (and even extra plots not used in the manuscript)
+# (and even extra plots not used in the manuscript).
+#
+# To load the data file already filtered and organized uncomment and run line 1032 
 #
 # By:   The authors
 # Date: Aug 2024
@@ -107,6 +109,12 @@ pal = c("#000000", # Black
 #----------------------------#
 # # load gbif occurrences 
 #----------------------------#
+#
+# Go to the data dir and download the tar.gz file with geography data.
+# Uncompress tarball and run the following lines. Make sure the
+# directory structure matches de lines of code below
+
+# To read in GBIF data
 indata_monocots = read_tsv("../data//0194948-220831081235567.zip", 
                              col_types = columns_gbif)
 
@@ -119,6 +127,10 @@ indata_angiosperms = rbind(indata_monocots,
 # # load BioClim variables 
 #----------------------------#
 #
+# The raw files are too big to have in this repo. Go to https://www.worldclim.org
+# and download the appropiate files based on the names in the following
+# lines of code. To run code, make sure the directory structure matches the lines
+# of code below
 
 # To estimate Bioclimatic range
 bio5 = raster("../data/wc2.1_30s_bio/wc2.1_30s_bio_5.tif") # Max Temperature of Warmest Month
